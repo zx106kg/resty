@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"github.com/andybalholm/brotli"
 	"io"
 	"sync"
 )
@@ -81,21 +82,69 @@ func decodeXML(r io.Reader, v any) error {
 	return nil
 }
 
+type countingReader interface {
+	io.Reader
+	Size() int64
+}
+
+type countingReadClose interface {
+	countingReader
+	io.Closer
+}
+
+type cntReader struct {
+	r io.Reader
+	n int64
+}
+
+func (r *cntReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	r.n += int64(n)
+	return n, err
+}
+
+func (r *cntReader) Size() int64 {
+	return r.n
+}
+
+type cntReadClose struct {
+	reader countingReader
+	closer io.Closer
+}
+
+func (r *cntReadClose) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	return n, err
+}
+
+func (r *cntReadClose) Close() error {
+	return r.closer.Close()
+}
+
+func (r *cntReadClose) Size() int64 {
+	return r.reader.Size()
+}
+
 var gzipPool = sync.Pool{New: func() any { return new(gzip.Reader) }}
 
 func decompressGzip(r io.ReadCloser) (io.ReadCloser, error) {
 	gr := gzipPool.Get().(*gzip.Reader)
-	err := gr.Reset(r)
-	return &gzipReader{s: r, r: gr}, err
+	reader := &cntReader{r: r}
+	cr := &cntReadClose{reader: reader, closer: r}
+	err := gr.Reset(cr)
+	return &gzipReader{s: cr, r: gr}, err
 }
 
 type gzipReader struct {
-	s io.ReadCloser
+	s countingReadClose
 	r *gzip.Reader
+	n int
 }
 
 func (gz *gzipReader) Read(p []byte) (n int, err error) {
-	return gz.r.Read(p)
+	n, err = gz.r.Read(p)
+	gz.n += n
+	return n, err
 }
 
 func (gz *gzipReader) Close() error {
@@ -105,21 +154,30 @@ func (gz *gzipReader) Close() error {
 	return nil
 }
 
+func (gz *gzipReader) Size() int64 {
+	return gz.s.Size()
+}
+
 var flatePool = sync.Pool{New: func() any { return flate.NewReader(nopReader{}) }}
 
 func decompressDeflate(r io.ReadCloser) (io.ReadCloser, error) {
 	fr := flatePool.Get().(io.ReadCloser)
-	err := fr.(flate.Resetter).Reset(r, nil)
-	return &deflateReader{s: r, r: fr}, err
+	reader := &cntReader{r: r}
+	cr := &cntReadClose{reader: reader, closer: r}
+	err := fr.(flate.Resetter).Reset(cr, nil)
+	return &deflateReader{s: cr, r: fr}, err
 }
 
 type deflateReader struct {
-	s io.ReadCloser
+	s countingReadClose
 	r io.ReadCloser
+	n int
 }
 
 func (d *deflateReader) Read(p []byte) (n int, err error) {
-	return d.r.Read(p)
+	n, err = d.r.Read(p)
+	d.n += n
+	return n, err
 }
 
 func (d *deflateReader) Close() error {
@@ -129,30 +187,76 @@ func (d *deflateReader) Close() error {
 	return nil
 }
 
+func (d *deflateReader) Size() int64 {
+	return d.s.Size()
+}
+
+var brotliPool = sync.Pool{New: func() any { return brotli.NewReader(nopReader{}) }}
+
+func decompressBrotli(r io.ReadCloser) (io.ReadCloser, error) {
+	br := brotliPool.Get().(*brotli.Reader)
+	reader := &cntReader{r: r}
+	cr := &cntReadClose{reader: reader, closer: r}
+	br.Reset(cr)
+	return &brotliReader{s: cr, r: br}, nil
+}
+
+type brotliReader struct {
+	s countingReadClose
+	r *brotli.Reader
+	n int
+}
+
+func (d *brotliReader) Read(p []byte) (n int, err error) {
+	n, err = d.r.Read(p)
+	d.n += n
+	return n, err
+}
+
+func (d *brotliReader) Close() error {
+	d.r.Reset(nopReader{})
+	flatePool.Put(d.r)
+	closeq(d.s)
+	return nil
+}
+
+func (d *brotliReader) Size() int64 {
+	return d.s.Size()
+}
+
 var ErrReadExceedsThresholdLimit = errors.New("resty: read exceeds the threshold limit")
 
 var _ io.ReadCloser = (*limitReadCloser)(nil)
 
 type limitReadCloser struct {
-	r io.Reader
-	l int64
-	t int64
-	f func(s int64)
+	r       io.Reader
+	l       int64
+	t       int64
+	f       func(s int64, raw int64)
+	rawSize int64
 }
 
 func (l *limitReadCloser) Read(p []byte) (n int, err error) {
+	var rawSize int64
+
 	if l.l == 0 {
 		n, err = l.r.Read(p)
+		if t, ok := l.r.(countingReadClose); ok {
+			rawSize = t.Size()
+		}
 		l.t += int64(n)
-		l.f(l.t)
+		l.f(l.t, rawSize)
 		return n, err
 	}
 	if l.t > l.l {
 		return 0, ErrReadExceedsThresholdLimit
 	}
 	n, err = l.r.Read(p)
+	if t, ok := l.r.(countingReadClose); ok {
+		rawSize = t.Size()
+	}
 	l.t += int64(n)
-	l.f(l.t)
+	l.f(l.t, rawSize)
 	return n, err
 }
 

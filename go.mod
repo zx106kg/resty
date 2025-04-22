@@ -1,5 +1,8 @@
-module resty.dev/v3
+module github.com/zx106kg/resty/v3
 
 go 1.21
 
-require golang.org/x/net v0.33.0
+require (
+	github.com/andybalholm/brotli v1.1.1
+	golang.org/x/net v0.33.0
+)

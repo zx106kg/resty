@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-//‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+// ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // Response struct and methods
-//_______________________________________________________________________
+// _______________________________________________________________________
 
 // Response struct holds response values of executed requests.
 type Response struct {
@@ -33,6 +33,14 @@ type Response struct {
 	bodyBytes  []byte
 	size       int64
 	receivedAt time.Time
+
+	// rawSize is the size of the response body before unzip it
+	rawSize int64
+}
+
+// RawSize method returns the raw size of the response body before unzip it.
+func (r *Response) RawSize() int64 {
+	return r.rawSize
 }
 
 // Status method returns the HTTP status string for the executed request.
@@ -252,8 +260,9 @@ func (r *Response) wrapLimitReadCloser() {
 	r.Body = &limitReadCloser{
 		r: r.Body,
 		l: r.Request.ResponseBodyLimit,
-		f: func(s int64) {
+		f: func(s int64, raw int64) {
 			r.size = s
+			r.rawSize = raw
 		},
 	}
 }
@@ -271,7 +280,7 @@ func (r *Response) wrapCopyReadCloser() {
 	}
 }
 
-func (r *Response) wrapContentDecompresser() error {
+func (r *Response) wrapContentDecompresser(modReply bool) error {
 	ce := r.Header().Get(hdrContentEncodingKey)
 	if isStringEmpty(ce) {
 		return nil
@@ -288,9 +297,11 @@ func (r *Response) wrapContentDecompresser() error {
 		}
 
 		r.Body = dec
-		r.Header().Del(hdrContentEncodingKey)
-		r.Header().Del(hdrContentLengthKey)
-		r.RawResponse.ContentLength = -1
+		if modReply {
+			r.Header().Del(hdrContentEncodingKey)
+			r.Header().Del(hdrContentLengthKey)
+			r.RawResponse.ContentLength = -1
+		}
 	} else {
 		return ErrContentDecompresserNotFound
 	}

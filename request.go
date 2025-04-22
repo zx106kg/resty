@@ -25,9 +25,9 @@ import (
 	"time"
 )
 
-//‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+// ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // Request struct and methods
-//_______________________________________________________________________
+// _______________________________________________________________________
 
 // Request struct is used to compose and fire individual requests from
 // Resty client. The [Request] provides an option to override client-level
@@ -70,6 +70,9 @@ type Request struct {
 	IsRetryDefaultConditions   bool
 	AllowNonIdempotentRetry    bool
 
+	// DoNotModReplyHeader provides the ability to keep the original response info, eg: Content-Encoding, Content-Length etc.
+	DoNotModReplyHeader bool
+
 	// RetryTraceID provides GUID for retry count > 0
 	RetryTraceID string
 
@@ -101,6 +104,12 @@ type Request struct {
 	debugLogCurlCmd     bool
 	unescapeQueryParams bool
 	multipartErrChan    chan error
+}
+
+// SetDoNotModReplyHeader method sets the RemainHeader flag in the request instance.
+func (r *Request) SetDoNotModReplyHeader(flag bool) *Request {
+	r.DoNotModReplyHeader = flag
+	return r
 }
 
 // SetMethod method used to set the HTTP verb for the request
@@ -1086,9 +1095,9 @@ func (r *Request) SetAllowNonIdempotentRetry(b bool) *Request {
 	return r
 }
 
-//‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+// ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // HTTP request tracing
-//_______________________________________________________________________
+// _______________________________________________________________________
 
 // EnableTrace method enables trace for the current request
 // using [httptrace.ClientTrace] and provides insights.
@@ -1282,9 +1291,9 @@ func (r *Request) TraceInfo() TraceInfo {
 	return ti
 }
 
-//‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+// ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // HTTP verb method starts here
-//_______________________________________________________________________
+// _______________________________________________________________________
 
 // Get method does GET HTTP request. It's defined in section 9.3.1 of [RFC 9110].
 //

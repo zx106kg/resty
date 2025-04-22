@@ -795,23 +795,69 @@ func TestClientDebugBodySizeLimit(t *testing.T) {
 	}
 }
 
+func Test_Bing(t *testing.T) {
+	t.Skip()
+	t.Run("parse", func(t *testing.T) {
+		client := New()
+		resp, _ := client.R().
+			SetHeader("accept-encoding", "br").
+			SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36").
+			SetDoNotModReplyHeader(true).
+			Get("https://cn.bing.com/")
+
+		raw := resp.Bytes()
+		fmt.Printf("len = %+v\n", len(raw))
+		fmt.Printf("raw = %+v\n", resp.RawSize())
+		fmt.Printf("content-encoding = %+v\n", resp.Header().Get("content-encoding"))
+	})
+
+	t.Run("no parse", func(t *testing.T) {
+		client := New()
+		resp, _ := client.R().
+			SetHeader("accept-encoding", "br").
+			SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36").
+			SetDoNotModReplyHeader(true).
+			SetDoNotParseResponse(true).
+			Get("https://cn.bing.com/")
+
+		raw, err := io.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("len = %+v\n", len(raw))
+		fmt.Printf("raw = %+v\n", resp.RawSize())
+		fmt.Printf("content-encoding = %+v\n", resp.Header().Get("content-encoding"))
+
+		resp.Body.Close()
+
+	})
+}
+
 func TestGzipCompress(t *testing.T) {
 	ts := createGenericServer(t)
 	defer ts.Close()
 
 	c := dcnl()
-	testcases := []struct{ url, want string }{
-		{ts.URL + "/gzip-test", "This is Gzip response testing"},
-		{ts.URL + "/gzip-test-gziped-empty-body", ""},
-		{ts.URL + "/gzip-test-no-gziped-body", ""},
+	testcases := []struct {
+		url   string
+		want1 string
+		want2 string
+		want3 bool
+	}{
+		{ts.URL + "/gzip-test", "This is Gzip response testing", "gzip", true},
+		{ts.URL + "/gzip-test-gziped-empty-body", "", "gzip", true},
+		{ts.URL + "/gzip-test-no-gziped-body", "", "gzip", false},
 	}
 	for _, tc := range testcases {
-		resp, err := c.R().Get(tc.url)
+		resp, err := c.R().SetDoNotModReplyHeader(true).Get(tc.url)
 
 		assertError(t, err)
 		assertEqual(t, http.StatusOK, resp.StatusCode())
 		assertEqual(t, "200 OK", resp.Status())
-		assertEqual(t, tc.want, resp.String())
+		assertEqual(t, tc.want1, resp.String())
+		assertEqual(t, tc.want2, resp.Header().Get("content-encoding"))
+		assertEqual(t, tc.want3, resp.RawSize() > 0)
 
 		logResponse(t, resp)
 	}
@@ -822,18 +868,25 @@ func TestDeflateCompress(t *testing.T) {
 	defer ts.Close()
 
 	c := dcnl()
-	testcases := []struct{ url, want string }{
-		{ts.URL + "/deflate-test", "This is Deflate response testing"},
-		{ts.URL + "/deflate-test-empty-body", ""},
-		{ts.URL + "/deflate-test-no-body", ""},
+	testcases := []struct {
+		url   string
+		want1 string
+		want2 string
+		want3 bool
+	}{
+		{ts.URL + "/deflate-test", "This is Deflate response testing", "deflate", true},
+		{ts.URL + "/deflate-test-empty-body", "", "deflate", true},
+		{ts.URL + "/deflate-test-no-body", "", "deflate", false},
 	}
 	for _, tc := range testcases {
-		resp, err := c.R().Get(tc.url)
+		resp, err := c.R().SetDoNotModReplyHeader(true).Get(tc.url)
 
 		assertError(t, err)
 		assertEqual(t, http.StatusOK, resp.StatusCode())
 		assertEqual(t, "200 OK", resp.Status())
-		assertEqual(t, tc.want, resp.String())
+		assertEqual(t, tc.want1, resp.String())
+		assertEqual(t, tc.want2, resp.Header().Get("content-encoding"))
+		assertEqual(t, tc.want3, resp.RawSize() > 0)
 
 		logResponse(t, resp)
 	}

@@ -61,9 +61,9 @@ func NewWithDialerAndTransportSettings(dialer *net.Dialer, transportSettings *Tr
 	})
 }
 
-//‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+// ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // Unexported methods
-//_______________________________________________________________________
+// _______________________________________________________________________
 
 func createTransport(dialer *net.Dialer, transportSettings *TransportSettings) *http.Transport {
 	if transportSettings == nil {
@@ -193,6 +193,7 @@ func createClient(hc *http.Client) *Client {
 	// Order matter, giving priority to gzip
 	c.AddContentDecompresser("deflate", decompressDeflate)
 	c.AddContentDecompresser("gzip", decompressGzip)
+	c.AddContentDecompresser("br", decompressBrotli)
 
 	// request middlewares
 	c.SetRequestMiddlewares(

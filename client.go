@@ -221,6 +221,7 @@ type Client struct {
 	contentDecompressers     map[string]ContentDecompresser
 	certWatcherStopChan      chan bool
 	circuitBreaker           *CircuitBreaker
+	doNotModReplyHeader      bool
 }
 
 // CertWatcherOptions allows configuring a watcher that reloads dynamically TLS certs.
@@ -230,9 +231,17 @@ type CertWatcherOptions struct {
 	PoolInterval time.Duration
 }
 
-//‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+// SetDoNotModReplyHeader method sets the RemainHeader flag in the client instance.
+func (c *Client) SetDoNotModReplyHeader(flag bool) *Client {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.doNotModReplyHeader = flag
+	return c
+}
+
+// ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // Client methods
-//___________________________________
+// ___________________________________
 
 // BaseURL method returns the Base URL value from the client instance.
 func (c *Client) BaseURL() string {
@@ -644,6 +653,7 @@ func (c *Client) R() *Request {
 		AllowMethodDeletePayload:   c.allowMethodDeletePayload,
 		AllowNonIdempotentRetry:    c.allowNonIdempotentRetry,
 		HeaderAuthorizationKey:     c.headerAuthorizationKey,
+		DoNotModReplyHeader:        c.doNotModReplyHeader,
 
 		client:              c,
 		baseURL:             c.baseURL,
@@ -2267,7 +2277,7 @@ func (c *Client) execute(req *Request) (*Response, error) {
 		c.circuitBreaker.applyPolicies(resp)
 
 		response.Body = resp.Body
-		if err = response.wrapContentDecompresser(); err != nil {
+		if err = response.wrapContentDecompresser(!req.DoNotModReplyHeader); err != nil {
 			return response, err
 		}
 
