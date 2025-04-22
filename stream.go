@@ -237,7 +237,7 @@ type limitReadCloser struct {
 }
 
 func (l *limitReadCloser) Read(p []byte) (n int, err error) {
-	var rawSize int64
+	var rawSize int64 = -1
 
 	if l.l == 0 {
 		n, err = l.r.Read(p)

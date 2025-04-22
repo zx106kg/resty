@@ -262,7 +262,11 @@ func (r *Response) wrapLimitReadCloser() {
 		l: r.Request.ResponseBodyLimit,
 		f: func(s int64, raw int64) {
 			r.size = s
-			r.rawSize = raw
+			if raw > 0 {
+				r.rawSize = raw
+			} else {
+				r.rawSize = s
+			}
 		},
 	}
 }

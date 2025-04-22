@@ -796,11 +796,11 @@ func TestClientDebugBodySizeLimit(t *testing.T) {
 }
 
 func Test_Bing(t *testing.T) {
-	t.Skip()
+	// t.Skip()
 	t.Run("parse", func(t *testing.T) {
 		client := New()
 		resp, _ := client.R().
-			SetHeader("accept-encoding", "br").
+			SetHeader("accept-encoding", "gzip").
 			SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36").
 			SetDoNotModReplyHeader(true).
 			Get("https://cn.bing.com/")
@@ -814,7 +814,7 @@ func Test_Bing(t *testing.T) {
 	t.Run("no parse", func(t *testing.T) {
 		client := New()
 		resp, _ := client.R().
-			SetHeader("accept-encoding", "br").
+			SetHeader("accept-encoding", "gzip").
 			SetHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36").
 			SetDoNotModReplyHeader(true).
 			SetDoNotParseResponse(true).
